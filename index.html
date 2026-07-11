@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>在庫管理 - NEWBOX</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #f5f6fa; color: #333; }
+
+  header {
+    background: #1a1a2e;
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 20px; font-weight: 700; }
+  header span { font-size: 13px; opacity: 0.6; }
+  header .header-right { display: flex; align-items: center; gap: 12px; }
+  .btn-refresh {
+    background: #4f6ef7;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.15s;
+  }
+  .btn-refresh:hover { opacity: 0.85; }
+  .btn-refresh.loading { opacity: 0.6; cursor: not-allowed; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .container { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* Upload area */
+  .upload-area {
+    border: 2px dashed #c0c4d6;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    background: white;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .upload-area:hover, .upload-area.drag-over { border-color: #4f6ef7; background: #f0f4ff; }
+  .upload-area p { color: #888; margin-top: 8px; font-size: 14px; }
+  .upload-area .icon { font-size: 40px; }
+  .upload-area label { cursor: pointer; color: #4f6ef7; font-weight: 600; }
+  #fileInput { display: none; }
+
+  /* Stats cards */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .stat-card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .stat-card .label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .stat-card .value { font-size: 24px; font-weight: 700; }
+  .stat-card.alert .value { color: #e74c3c; }
+  .stat-card.ok .value { color: #27ae60; }
+  .stat-card.info .value { color: #4f6ef7; }
+
+  /* Controls */
+  .controls {
+    background: white;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .controls input[type="text"] {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 14px;
+    width: 240px;
+    outline: none;
+  }
+  .controls input[type="text"]:focus { border-color: #4f6ef7; }
+  .controls select {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 14px;
+    outline: none;
+    background: white;
+  }
+  .btn {
+    padding: 7px 16px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: #4f6ef7; color: white; }
+  .btn-danger { background: #e74c3c; color: white; }
+  .btn-outline { background: white; border: 1px solid #ddd; color: #555; }
+  .controls .spacer { flex: 1; }
+
+  /* Alert banner */
+  .alert-banner {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #856404;
+    display: none;
+  }
+  .alert-banner.show { display: block; }
+
+  /* Table */
+  .table-wrap {
+    background: white;
+    border-radius: 10px;
+    overflow: auto;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    background: #1a1a2e;
+    color: white;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { background: #2d2d4e; }
+  thead th .sort-icon { margin-left: 4px; opacity: 0.5; font-size: 10px; }
+  thead th.sorted .sort-icon { opacity: 1; }
+
+  tbody tr { border-bottom: 1px solid #f0f0f0; }
+  tbody tr:hover { background: #fafbff; }
+  tbody tr.low-stock { background: #fff5f5; }
+  tbody tr.low-stock:hover { background: #fee; }
+  tbody tr.zero-stock { background: #fff8f8; opacity: 0.75; }
+
+  td { padding: 9px 12px; white-space: nowrap; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.product-name { font-weight: 600; min-width: 160px; white-space: normal; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-red { background: #fde8e8; color: #c0392b; }
+  .badge-green { background: #e6f9ef; color: #1e8449; }
+  .badge-gray { background: #f0f0f0; color: #888; }
+
+  .stock-total { font-weight: 700; }
+  .stock-total.low { color: #e74c3c; }
+
+  /* Location breakdown */
+  .loc { font-size: 11px; color: #999; }
+
+  /* No data */
+  .no-data {
+    text-align: center;
+    padding: 60px 20px;
+    color: #bbb;
+  }
+  .no-data .icon { font-size: 48px; margin-bottom: 12px; }
+
+  /* Modal for entry/exit */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 28px;
+    width: 420px;
+    max-width: 95vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 20px; }
+  .modal .field { margin-bottom: 14px; }
+  .modal label { display: block; font-size: 13px; color: #666; margin-bottom: 5px; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    outline: none;
+  }
+  .modal input:focus, .modal select:focus { border-color: #4f6ef7; }
+  .modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* History tab */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab {
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: white;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  .tab.active { background: #4f6ef7; color: white; border-color: #4f6ef7; }
+
+  .history-table-wrap { background: white; border-radius: 10px; overflow: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .history-empty { text-align: center; padding: 40px; color: #bbb; font-size: 14px; }
+
+  footer { text-align: center; color: #bbb; font-size: 12px; padding: 20px; }
+
+  /* Order status badges */
+  .order-status-select {
+    border: none;
+    border-radius: 12px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .order-status-製造中 { background: #fff3e0; color: #e65100; }
+  .order-status-輸送中 { background: #e3f2fd; color: #1565c0; }
+  .order-status-通関中 { background: #f3e5f5; color: #6a1b9a; }
+  .order-status-入荷待ち { background: #fff8e1; color: #f57f17; }
+  .section-header { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: #333; display: flex; align-items: center; gap: 8px; }
+  .count-badge { background: #4f6ef7; color: white; border-radius: 10px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>在庫管理 NEWBOX</h1>
+  <div class="header-right">
+    <span id="lastUpdated">読み込み中...</span>
+    <button class="btn-refresh" id="refreshBtn" onclick="fetchFromSheets()">
+      <span id="refreshIcon">↻</span> スプレッドシートから更新
+    </button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div class="upload-area" id="uploadArea">
+    <div class="icon">📂</div>
+    <p><label for="fileInput">CSVファイルを選択</label>するか、ここにドラッグ&ドロップ</p>
+    <p style="margin-top:6px;font-size:12px;">Googleスプレッドシート → ファイル → ダウンロード → CSV形式</p>
+    <input type="file" id="fileInput" accept=".csv">
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('inventory')">在庫一覧</button>
+    <button class="tab" onclick="switchTab('history')">入出庫履歴</button>
+    <button class="tab" onclick="switchTab('chatwork')">💬 Chatwork連携</button>
+    <button class="tab" onclick="switchTab('orders')">📦 発注リスト</button>
+  </div>
+
+  <!-- Inventory Tab -->
+  <div id="inventoryTab">
+    <!-- Stats -->
+    <div class="stats" id="statsArea" style="display:none">
+      <div class="stat-card info">
+        <div class="label">総商品数</div>
+        <div class="value" id="statTotal">0</div>
+      </div>
+      <div class="stat-card alert">
+        <div class="label">発注要（在庫不足）</div>
+        <div class="value" id="statLow">0</div>
+      </div>
+      <div class="stat-card ok">
+        <div class="label">在庫あり</div>
+        <div class="value" id="statOk">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">総在庫金額</div>
+        <div class="value" id="statValue" style="font-size:18px">¥0</div>
+      </div>
+    </div>
+
+    <!-- Alert -->
+    <div class="alert-banner" id="alertBanner"></div>
+
+    <!-- Controls -->
+    <div class="controls" id="controlsArea" style="display:none">
+      <input type="text" id="searchBox" placeholder="商品名で検索..." oninput="renderTable()">
+      <select id="filterStatus" onchange="renderTable()">
+        <option value="all">すべて</option>
+        <option value="low">在庫不足のみ</option>
+        <option value="ok">在庫あり</option>
+        <option value="zero">在庫ゼロ</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="openAddModal()">+ 在庫を更新</button>
+      <button class="btn btn-outline" onclick="exportCSV()">CSVエクスポート</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div class="no-data" id="noData">
+        <div class="icon">📋</div>
+        <div>CSVファイルをアップロードすると在庫データが表示されます</div>
+      </div>
+      <table id="inventoryTable" style="display:none">
+        <thead>
+          <tr>
+            <th onclick="sortBy('商品名')">商品名 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('FBA在庫')" class="num">FBA <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('RSL在庫')" class="num">RSL <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('本社101在庫')" class="num">本社101 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('本社102在庫')" class="num">本社102 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('愛媛在庫')" class="num">愛媛 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('在庫合計')" class="num">在庫合計 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('仕入れ価格')" class="num">仕入価格 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('合計金額')" class="num">合計金額 <span class="sort-icon">↕</span></th>
+            <th onclick="sortBy('発注しき値')" class="num">発注点 <span class="sort-icon">↕</span></th>
+            <th>ステータス</th>
+            <th>備考</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chatwork Tab -->
+  <div id="chatworkTab" style="display:none">
+    <div class="controls">
+      <input type="text" id="cwSearch" placeholder="商品名で検索..." oninput="renderChatwork()">
+      <select id="cwType" onchange="renderChatwork()">
+        <option value="all">すべて</option>
+        <option value="入庫">入庫のみ</option>
+        <option value="出庫">出庫のみ</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="cwFetchBtn" onclick="fetchChatwork()">↻ Chatworkから取得</button>
+    </div>
+    <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px;color:#856404">
+      ⚠️ AIがメッセージを自動解析しています。内容を確認してから「在庫に反映」してください。
+    </div>
+    <div class="history-table-wrap">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">日時</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">送信者</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">商品名</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">種別</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right">数量</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">倉庫</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">メッセージ</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:center">操作</th>
+          </tr>
+        </thead>
+        <tbody id="cwBody"></tbody>
+      </table>
+      <div class="history-empty" id="cwEmpty">「Chatworkから取得」ボタンを押してください</div>
+    </div>
+  </div>
+
+  <!-- Orders Tab -->
+  <div id="ordersTab" style="display:none">
+    <div class="controls">
+      <input type="text" id="orderSearch" placeholder="商品名で検索..." oninput="renderOrders()">
+      <select id="orderStatusFilter" onchange="renderOrders()">
+        <option value="all">すべて</option>
+        <option value="active">進行中のみ</option>
+        <option value="done">完成済みのみ</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="ordersRefreshBtn" onclick="fetchOrderSheet()">↻ シートから更新</button>
+      <a href="https://docs.google.com/spreadsheets/d/1qUgOKW7n6qdjz-HYGVSEClWfyZDTe9L-OWoX1SUxFtE/edit?gid=366664798" target="_blank" class="btn btn-outline">スプレッドシートを開く↗</a>
+    </div>
+    <div class="table-wrap">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left;white-space:nowrap">注文日</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">商品名</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">注文数</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">納品先</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">工場完成</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left;white-space:nowrap">発送予定日</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">貨物追跡番号</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">発送待ち</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">備考</th>
+          </tr>
+        </thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+      <div class="history-empty" id="ordersEmpty">「↻ シートから更新」を押してデータを読み込んでください</div>
+    </div>
+  </div>
+
+  <!-- History Tab -->
+  <div id="historyTab" style="display:none">
+    <div class="controls">
+      <input type="text" id="historySearch" placeholder="商品名で検索..." oninput="renderHistory()">
+      <select id="historyType" onchange="renderHistory()">
+        <option value="all">すべて</option>
+        <option value="in">入庫のみ</option>
+        <option value="out">出庫のみ</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn btn-danger" onclick="clearHistory()">履歴をクリア</button>
+    </div>
+    <div class="history-table-wrap">
+      <table id="historyTable" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">日時</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">商品名</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">種別</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right">数量</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right">変更後在庫</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">倉庫</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">メモ</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+      <div class="history-empty" id="historyEmpty">入出庫履歴がありません</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Update Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">在庫を更新</h2>
+    <div class="field">
+      <label>商品名</label>
+      <select id="modalProduct"></select>
+    </div>
+    <div class="field">
+      <label>種別</label>
+      <select id="modalType">
+        <option value="in">入庫</option>
+        <option value="out">出庫</option>
+        <option value="set">在庫数を直接設定</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>倉庫</label>
+      <select id="modalWarehouse">
+        <option value="FBA在庫">FBA</option>
+        <option value="RSL在庫">RSL</option>
+        <option value="本社101在庫">本社101</option>
+        <option value="本社102在庫">本社102</option>
+        <option value="愛媛在庫">愛媛</option>
+      </select>
+    </div>
+    <div class="field">
+      <label id="modalQtyLabel">数量</label>
+      <input type="number" id="modalQty" min="0" placeholder="0">
+    </div>
+    <div class="field">
+      <label>メモ（任意）</label>
+      <input type="text" id="modalNote" placeholder="例：Amazon FBA納品">
+    </div>
+    <div class="actions">
+      <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="applyUpdate()">更新</button>
+    </div>
+  </div>
+</div>
+
+<footer>NEWBOX 在庫管理システム</footer>
+
+<script>
+const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQAOJ2GLo9RdL-RzE-gEtmEItMEFYsnEXhDUInDPMv_5VphfxhgctSMZDC7MG2NpNCqsuD6YjcXXiFQ/pub?gid=904298819&single=true&output=csv';
+
+// 愛媛倉庫シート設定
+const EHIME_SHEET_ID = '1zZKV5tw6cD3rRL2HIGls_0pS7nqWzV8dNHgz5Lj6yz4';
+const EHIME_SHEET_GID = '1018492904';
+// 愛媛シート列インデックス(残数) → アプリ商品名のマッピング
+// 各商品は4列構成: 入荷(header_col) | 出荷(+1) | 残数(+2) | spacer(+3)
+const EHIME_COL_MAP = {
+  3:  'インナーシャツ白V5（M）',
+  7:  'インナーシャツ白V5（L）',
+  11: 'インナーシャツ白V5（XL）',
+  15: '脇汗パッド44黒',
+  19: '脇汗パッド100黒',
+  23: '脇汗パッド44白',
+  27: '脇汗パッド100白',
+  31: '救急セット小',
+  35: '救急セット中',
+  39: '携帯浄水器',
+  43: '靴下 くるぶし10',
+  47: '靴下 長丈10',
+  51: 'ボクサーパンツ５枚組M',
+  55: 'ボクサーパンツ５枚組L',
+  59: 'ボクサーパンツ５枚組XL',
+  63: 'ボクサーパンツ５枚組２XL',
+  67: 'ガラコ３０ml 車 完成品',
+  71: 'チキンジャーキー',
+  75: 'フィナキシル',
+  79: 'リポソームルテインpremium',
+  83: 'リポソーム亜鉛',
+  87: 'リポソーム鉄&フェリチン鉄',
+};
+
+let inventoryData = [];
+let history = JSON.parse(localStorage.getItem('inventoryHistory') || '[]');
+let priceMap = JSON.parse(localStorage.getItem('priceMap') || '{}');
+let sortColumn = '';
+let sortAsc = true;
+let currentTab = 'inventory';
+
+function savePriceMap() {
+  localStorage.setItem('priceMap', JSON.stringify(priceMap));
+}
+
+// --- 愛媛倉庫シートから残数を取得して上書き ---
+async function fetchEhimeStock() {
+  try {
+    const query = encodeURIComponent('SELECT * WHERE A IS NOT NULL ORDER BY A DESC LIMIT 1');
+    const url = `https://docs.google.com/spreadsheets/d/${EHIME_SHEET_ID}/gviz/tq?tqx=out:json&gid=${EHIME_SHEET_GID}&tq=${query}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const row = json.table.rows[0];
+    if (!row) return;
+
+    // gviz日付形式 "Date(yyyy,m,d)" をパース（月は0始まり）
+    const dateRaw = String(row.c[0]?.v ?? '');
+    const dm = dateRaw.match(/Date\((\d+),(\d+),(\d+)\)/);
+    const ehimeDate = dm ? new Date(+dm[1], +dm[2], +dm[3]).toLocaleDateString('ja-JP') : '';
+
+    // 各商品の愛媛在庫を更新
+    for (const [colIdx, productName] of Object.entries(EHIME_COL_MAP)) {
+      const val = row.c[parseInt(colIdx)]?.v;
+      const stock = typeof val === 'number' ? val : 0;
+      const item = inventoryData.find(r => r.商品名 === productName);
+      if (item) {
+        if (priceMap[productName] !== undefined) item.仕入れ価格 = priceMap[productName];
+        item.愛媛在庫 = stock;
+        item.在庫合計 = item.FBA在庫 + item.RSL在庫 + item.本社101在庫 + item.本社102在庫 + item.愛媛在庫;
+        item.合計金額 = item.在庫合計 * item.仕入れ価格;
+      }
+    }
+
+    localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+    updateStats();
+    renderTable();
+
+    const el = document.getElementById('lastUpdated');
+    if (el && ehimeDate) {
+      el.textContent += `　愛媛在庫: ${ehimeDate}時点`;
+    }
+  } catch (err) {
+    console.error('愛媛在庫取得エラー:', err);
+  }
+}
+
+// --- Auto-fetch from Google Sheets ---
+async function fetchFromSheets() {
+  const btn = document.getElementById('refreshBtn');
+  const icon = document.getElementById('refreshIcon');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  icon.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res = await fetch(SHEETS_CSV_URL);
+    if (!res.ok) throw new Error('通信エラー: ' + res.status);
+    const text = await res.text();
+    parseCSV(text);
+    document.getElementById('lastUpdated').textContent = `最終更新: ${new Date().toLocaleString('ja-JP')}`;
+    await fetchEhimeStock();
+  } catch (err) {
+    document.getElementById('lastUpdated').textContent = '取得失敗 - CSVをアップロードしてください';
+    console.error(err);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    icon.textContent = '↻';
+  }
+}
+
+// --- CSV Upload ---
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadCSV(e.target.files[0]);
+});
+
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadCSV(e.dataTransfer.files[0]);
+});
+
+function loadCSV(file) {
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      parseCSV(e.target.result);
+      document.getElementById('lastUpdated').textContent = `最終更新: ${new Date().toLocaleString('ja-JP')}`;
+      await fetchEhimeStock();
+    } catch(err) {
+      alert('CSVの読み込みに失敗しました: ' + err.message);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseCSV(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  if (lines.length < 2) throw new Error('データが少なすぎます');
+
+  // Find header row (containing 商品名 or similar)
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    if (lines[i].includes('商品名') || lines[i].includes('在庫')) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  const headers = parseCSVLine(lines[headerIdx]);
+  const rows = [];
+
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.every(c => !c.trim())) continue;
+
+    const row = {};
+    headers.forEach((h, idx) => {
+      row[h.trim()] = (cols[idx] || '').trim();
+    });
+
+    // Map columns flexibly
+    const name = row['商品名'] || '';
+    if (!name) continue;
+
+    rows.push({
+      商品名: name,
+      ランキング: row['ランキング目安'] || '',
+      FBA在庫: toNum(row['FBA在庫']),
+      RSL在庫: toNum(row['RSL在庫']),
+      本社101在庫: toNum(row['本社101在庫']),
+      本社102在庫: toNum(row['本社102在庫']),
+      愛媛在庫: toNum(row['愛媛在庫']),
+      在庫合計: toNum(row['在庫合計']),
+      仕入れ価格: toNum(row['仕入れ価格/税込'] || row['仕入価格'] || row['仕入れ価格']),
+      合計金額: toNum(row['合計/円'] || row['合計金額']),
+      発注しき値: toNum(row['発注しき値'] || row['発注しきい値']),
+      備考: row['備考'] || '',
+      破棄処分: row['破棄処分(R8.6月～)'] || '',
+    });
+  }
+
+  if (rows.length === 0) throw new Error('商品データが見つかりませんでした。ヘッダー行を確認してください。');
+
+  // 保存済み仕入れ価格を適用し、合計金額を再計算
+  rows.forEach(row => {
+    if (priceMap[row.商品名] !== undefined) {
+      row.仕入れ価格 = priceMap[row.商品名];
+    } else if (row.仕入れ価格 > 0) {
+      priceMap[row.商品名] = row.仕入れ価格;
+      savePriceMap();
+    }
+    row.合計金額 = row.在庫合計 * row.仕入れ価格;
+  });
+
+  inventoryData = rows;
+  localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+  updateStats();
+  renderTable();
+  document.getElementById('statsArea').style.display = 'grid';
+  document.getElementById('controlsArea').style.display = 'flex';
+  document.getElementById('inventoryTable').style.display = 'table';
+  document.getElementById('noData').style.display = 'none';
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function toNum(v) {
+  if (v === undefined || v === null || v === '') return 0;
+  const s = String(v).replace(/[¥,￥\s]/g, '').replace(/[^\d.\-]/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// --- Stats ---
+function updateStats() {
+  const total = inventoryData.length;
+  const low = inventoryData.filter(r => r.発注しき値 > 0 && r.在庫合計 <= r.発注しき値).length;
+  const ok = inventoryData.filter(r => r.在庫合計 > 0).length;
+  const totalValue = inventoryData.reduce((s, r) => s + r.合計金額, 0);
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statLow').textContent = low;
+  document.getElementById('statOk').textContent = ok;
+  document.getElementById('statValue').textContent = '¥' + totalValue.toLocaleString();
+
+  const banner = document.getElementById('alertBanner');
+  if (low > 0) {
+    const items = inventoryData
+      .filter(r => r.発注しき値 > 0 && r.在庫合計 <= r.発注しき値)
+      .map(r => r.商品名).join('、');
+    banner.textContent = `⚠️ 発注が必要な商品: ${items}`;
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// --- Table Render ---
+function renderTable() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const filter = document.getElementById('filterStatus').value;
+
+  let data = [...inventoryData];
+
+  if (search) data = data.filter(r => r.商品名.toLowerCase().includes(search));
+  if (filter === 'low') data = data.filter(r => r.発注しき値 > 0 && r.在庫合計 <= r.発注しき値);
+  if (filter === 'ok') data = data.filter(r => r.在庫合計 > 0 && (r.発注しき値 === 0 || r.在庫合計 > r.発注しき値));
+  if (filter === 'zero') data = data.filter(r => r.在庫合計 === 0);
+
+  if (sortColumn) {
+    data.sort((a, b) => {
+      let va = a[sortColumn], vb = b[sortColumn];
+      if (typeof va === 'number') return sortAsc ? va - vb : vb - va;
+      return sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    });
+  }
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:#bbb">該当する商品がありません</td></tr>';
+    return;
+  }
+
+  data.forEach(row => {
+    const isLow = row.発注しき値 > 0 && row.在庫合計 <= row.発注しき値;
+    const isZero = row.在庫合計 === 0;
+    const cls = isLow ? 'low-stock' : (isZero ? 'zero-stock' : '');
+
+    let badge = '';
+    if (isZero) badge = '<span class="badge badge-gray">在庫ゼロ</span>';
+    else if (isLow) badge = '<span class="badge badge-red">発注要</span>';
+    else badge = '<span class="badge badge-green">在庫あり</span>';
+
+    const tr = document.createElement('tr');
+    tr.className = cls;
+    tr.innerHTML = `
+      <td class="product-name">${esc(row.商品名)}</td>
+      <td class="num">${row.FBA在庫 || '-'}</td>
+      <td class="num">${row.RSL在庫 || '-'}</td>
+      <td class="num">${row.本社101在庫 || '-'}</td>
+      <td class="num">${row.本社102在庫 || '-'}</td>
+      <td class="num">${row.愛媛在庫 || '-'}</td>
+      <td class="num stock-total ${isLow ? 'low' : ''}">${row.在庫合計.toLocaleString()}</td>
+      <td class="num" style="cursor:pointer;text-decoration:underline dotted #aaa" title="クリックして編集" onclick="editPrice(this, '${esc(row.商品名)}', ${row.仕入れ価格})">${row.仕入れ価格 ? '¥' + row.仕入れ価格.toLocaleString() : '<span style=\'color:#bbb;font-size:11px\'>クリックして入力</span>'}</td>
+      <td class="num" style="${row.合計金額 ? 'font-weight:600' : ''}">${row.合計金額 ? '¥' + row.合計金額.toLocaleString() : '-'}</td>
+      <td class="num">${row.発注しき値 || '-'}</td>
+      <td>${badge}</td>
+      <td style="max-width:160px;white-space:normal;font-size:12px;color:#888">${esc(row.備考)}</td>
+      <td><button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="openUpdateModal('${esc(row.商品名)}')">更新</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// --- Price Edit ---
+function editPrice(cell, productName, currentPrice) {
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = currentPrice || '';
+  input.min = '0';
+  input.style.cssText = 'width:90px;border:1px solid #4f6ef7;border-radius:4px;padding:3px 6px;font-size:13px;text-align:right;outline:none';
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  function save() {
+    const price = parseInt(input.value) || 0;
+    priceMap[productName] = price;
+    savePriceMap();
+    const item = inventoryData.find(r => r.商品名 === productName);
+    if (item) {
+      item.仕入れ価格 = price;
+      item.合計金額 = item.在庫合計 * price;
+      localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+    }
+    updateStats();
+    renderTable();
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') renderTable();
+  });
+}
+
+// --- Sort ---
+function sortBy(col) {
+  if (sortColumn === col) sortAsc = !sortAsc;
+  else { sortColumn = col; sortAsc = true; }
+  document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
+  renderTable();
+}
+
+// --- Modal ---
+function openAddModal() {
+  populateProductSelect();
+  document.getElementById('modalTitle').textContent = '在庫を更新';
+  document.getElementById('modalQty').value = '';
+  document.getElementById('modalNote').value = '';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function openUpdateModal(name) {
+  populateProductSelect(name);
+  document.getElementById('modalTitle').textContent = '在庫を更新: ' + name;
+  document.getElementById('modalQty').value = '';
+  document.getElementById('modalNote').value = '';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function populateProductSelect(selected) {
+  const sel = document.getElementById('modalProduct');
+  sel.innerHTML = '';
+  inventoryData.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.商品名;
+    opt.textContent = r.商品名;
+    if (selected && r.商品名 === selected) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+document.getElementById('modalType').addEventListener('change', () => {
+  const type = document.getElementById('modalType').value;
+  document.getElementById('modalQtyLabel').textContent = type === 'set' ? '設定する在庫数' : '数量';
+});
+
+function applyUpdate() {
+  const productName = document.getElementById('modalProduct').value;
+  const type = document.getElementById('modalType').value;
+  const warehouse = document.getElementById('modalWarehouse').value;
+  const qty = parseInt(document.getElementById('modalQty').value);
+  const note = document.getElementById('modalNote').value;
+
+  if (!productName) { alert('商品を選択してください'); return; }
+  if (isNaN(qty) || qty < 0) { alert('正しい数量を入力してください'); return; }
+
+  const row = inventoryData.find(r => r.商品名 === productName);
+  if (!row) return;
+
+  const before = row[warehouse];
+  let after;
+
+  if (type === 'in') after = before + qty;
+  else if (type === 'out') after = Math.max(0, before - qty);
+  else after = qty;
+
+  row[warehouse] = after;
+  row.在庫合計 = row.FBA在庫 + row.RSL在庫 + row.本社101在庫 + row.本社102在庫 + row.愛媛在庫;
+  row.合計金額 = row.在庫合計 * row.仕入れ価格;
+
+  // Log history
+  const entry = {
+    日時: new Date().toLocaleString('ja-JP'),
+    商品名: productName,
+    種別: type === 'in' ? '入庫' : type === 'out' ? '出庫' : '設定',
+    数量: type === 'in' ? qty : type === 'out' ? qty : `→${qty}`,
+    変更後在庫: row.在庫合計,
+    倉庫: warehouse.replace('在庫', ''),
+    メモ: note,
+  };
+  history.unshift(entry);
+  localStorage.setItem('inventoryHistory', JSON.stringify(history));
+  localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+
+  updateStats();
+  renderTable();
+  renderHistory();
+  closeModal();
+  document.getElementById('lastUpdated').textContent = `最終更新: ${new Date().toLocaleString('ja-JP')}`;
+}
+
+// --- History ---
+function renderHistory() {
+  const search = document.getElementById('historySearch').value.toLowerCase();
+  const type = document.getElementById('historyType').value;
+
+  let data = [...history];
+  if (search) data = data.filter(r => r.商品名.toLowerCase().includes(search));
+  if (type === 'in') data = data.filter(r => r.種別 === '入庫');
+  if (type === 'out') data = data.filter(r => r.種別 === '出庫');
+
+  const tbody = document.getElementById('historyBody');
+  const empty = document.getElementById('historyEmpty');
+  tbody.innerHTML = '';
+
+  if (data.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  data.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f0f0f0';
+    const typeColor = row.種別 === '入庫' ? '#27ae60' : row.種別 === '出庫' ? '#e74c3c' : '#4f6ef7';
+    tr.innerHTML = `
+      <td style="padding:9px 12px;font-size:12px;color:#888">${esc(row.日時)}</td>
+      <td style="padding:9px 12px;font-weight:600">${esc(row.商品名)}</td>
+      <td style="padding:9px 12px"><span style="color:${typeColor};font-weight:700">${esc(row.種別)}</span></td>
+      <td style="padding:9px 12px;text-align:right">${row.数量}</td>
+      <td style="padding:9px 12px;text-align:right;font-weight:600">${row.変更後在庫.toLocaleString()}</td>
+      <td style="padding:9px 12px;color:#888">${esc(row.倉庫)}</td>
+      <td style="padding:9px 12px;color:#888;font-size:12px">${esc(row.メモ)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function clearHistory() {
+  if (!confirm('履歴をすべて削除しますか？')) return;
+  history = [];
+  localStorage.setItem('inventoryHistory', '[]');
+  renderHistory();
+}
+
+// --- Chatwork ---
+let cwData = [];
+
+async function fetchChatwork() {
+  const btn = document.getElementById('cwFetchBtn');
+  btn.textContent = '取得中...';
+  btn.disabled = true;
+  document.getElementById('cwEmpty').textContent = 'Chatworkからメッセージを取得中...';
+  document.getElementById('cwEmpty').style.display = 'block';
+  document.getElementById('cwBody').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/chatwork/shipments');
+    if (!res.ok) throw new Error('取得失敗: ' + res.status);
+    cwData = await res.json();
+    renderChatwork();
+  } catch(e) {
+    document.getElementById('cwEmpty').textContent = '取得に失敗しました: ' + e.message;
+  } finally {
+    btn.textContent = '↻ Chatworkから取得';
+    btn.disabled = false;
+  }
+}
+
+function renderChatwork() {
+  const search = document.getElementById('cwSearch').value.toLowerCase();
+  const type = document.getElementById('cwType').value;
+  let data = [...cwData];
+  if (search) data = data.filter(r => r.商品名.toLowerCase().includes(search) || r.メッセージ.toLowerCase().includes(search));
+  if (type !== 'all') data = data.filter(r => r.種別 === type);
+
+  const tbody = document.getElementById('cwBody');
+  const empty = document.getElementById('cwEmpty');
+  tbody.innerHTML = '';
+
+  if (data.length === 0) {
+    empty.style.display = 'block';
+    empty.textContent = cwData.length === 0 ? '「Chatworkから取得」ボタンを押してください' : '該当するデータがありません';
+    return;
+  }
+  empty.style.display = 'none';
+
+  data.forEach((row, i) => {
+    const typeColor = row.種別 === '入庫' ? '#27ae60' : '#e74c3c';
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f0f0f0';
+    tr.innerHTML = `
+      <td style="padding:9px 12px;font-size:12px;color:#888;white-space:nowrap">${esc(row.日時)}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#666">${esc(row.送信者)}</td>
+      <td style="padding:9px 12px;font-weight:600">${esc(row.商品名)}</td>
+      <td style="padding:9px 12px"><span style="color:${typeColor};font-weight:700">${esc(row.種別)}</span></td>
+      <td style="padding:9px 12px;text-align:right;font-weight:600">${row.数量.toLocaleString()}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#888">${esc(row.倉庫.replace('在庫',''))}</td>
+      <td style="padding:9px 12px;font-size:11px;color:#999;max-width:260px;white-space:normal">${esc(row.メッセージ)}</td>
+      <td style="padding:9px 12px;text-align:center">
+        <button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="applyCwRecord(${i})">在庫に反映</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function applyCwRecord(idx) {
+  const row = cwData[idx];
+  if (!row) return;
+
+  const product = inventoryData.find(r => r.商品名 === row.商品名 || r.商品名.includes(row.商品名) || row.商品名.includes(r.商品名));
+  if (!product) {
+    alert(`「${row.商品名}」が在庫リストに見つかりません。\n商品名を確認してください。`);
+    return;
+  }
+
+  const warehouse = row.倉庫;
+  const before = product[warehouse] || 0;
+  let after;
+  if (row.種別 === '入庫') after = before + row.数量;
+  else after = Math.max(0, before - row.数量);
+
+  if (!confirm(`${product.商品名}\n${warehouse.replace('在庫','')}: ${before} → ${after}\n\nこの内容で在庫を更新しますか？`)) return;
+
+  product[warehouse] = after;
+  product.在庫合計 = product.FBA在庫 + product.RSL在庫 + product.本社101在庫 + product.本社102在庫 + product.愛媛在庫;
+  product.合計金額 = product.在庫合計 * product.仕入れ価格;
+
+  const entry = {
+    日時: new Date().toLocaleString('ja-JP'),
+    商品名: product.商品名,
+    種別: row.種別,
+    数量: row.数量,
+    変更後在庫: product.在庫合計,
+    倉庫: warehouse.replace('在庫',''),
+    メモ: 'Chatwork: ' + row.メッセージ.substring(0, 50),
+  };
+  history.unshift(entry);
+  localStorage.setItem('inventoryHistory', JSON.stringify(history));
+  localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+
+  updateStats();
+  renderTable();
+  // 反映済みの行をグレーアウト
+  const rows = document.getElementById('cwBody').querySelectorAll('tr');
+  // Re-render to update
+  cwData.splice(idx, 1);
+  renderChatwork();
+}
+
+// --- Tabs ---
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('inventoryTab').style.display = tab === 'inventory' ? 'block' : 'none';
+  document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
+  document.getElementById('chatworkTab').style.display = tab === 'chatwork' ? 'block' : 'none';
+  document.getElementById('ordersTab').style.display = tab === 'orders' ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active',
+      (i === 0 && tab === 'inventory') ||
+      (i === 1 && tab === 'history') ||
+      (i === 2 && tab === 'chatwork') ||
+      (i === 3 && tab === 'orders')
+    );
+  });
+  if (tab === 'history') renderHistory();
+  if (tab === 'orders') { if (orderSheetData.length === 0) fetchOrderSheet(); else renderOrders(); }
+}
+
+// --- Export ---
+function exportCSV() {
+  const headers = ['商品名','FBA在庫','RSL在庫','本社101在庫','本社102在庫','愛媛在庫','在庫合計','仕入れ価格','合計金額','発注しき値','備考'];
+  const rows = [headers.join(',')];
+  inventoryData.forEach(r => {
+    rows.push([r.商品名, r.FBA在庫, r.RSL在庫, r.本社101在庫, r.本社102在庫, r.愛媛在庫, r.在庫合計, r.仕入れ価格, r.合計金額, r.発注しき値, r.備考].map(v => `"${v}"`).join(','));
+  });
+  const blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `在庫データ_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// --- Order List (Google Sheets連携) ---
+const ORDER_SHEET_ID = '1qUgOKW7n6qdjz-HYGVSEClWfyZDTe9L-OWoX1SUxFtE';
+const ORDER_SHEET_GID = '366664798';
+let orderSheetData = [];
+
+function parseGvizDate(v) {
+  if (!v) return '';
+  const m = String(v).match(/Date\((\d+),(\d+),(\d+)\)/);
+  if (!m) return '';
+  const d = new Date(+m[1], +m[2], +m[3]);
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function fetchOrderSheet() {
+  const btn = document.getElementById('ordersRefreshBtn');
+  btn.textContent = '読み込み中...';
+  btn.disabled = true;
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${ORDER_SHEET_ID}/gviz/tq?tqx=out:json&gid=${ORDER_SHEET_GID}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    orderSheetData = [];
+    (json.table.rows || []).forEach(row => {
+      const c = row.c || [];
+      const name = c[1]?.v || '';
+      if (!name) return;
+      orderSheetData.push({
+        注文日:     parseGvizDate(c[0]?.v) || c[0]?.f || '',
+        商品名:     name,
+        注文数:     c[2]?.v ?? '',
+        納品先:     c[3]?.v || '',
+        工場完成:   c[6]?.v || '',
+        発送予定日: parseGvizDate(c[7]?.v) || c[7]?.f || '',
+        追跡番号:   c[8]?.v || '',
+        備考:       c[9]?.v || '',
+        発送待ち:   c[13]?.v ?? '',
+      });
+    });
+    renderOrders();
+  } catch(e) {
+    document.getElementById('ordersEmpty').textContent = '取得に失敗しました: ' + e.message;
+    document.getElementById('ordersEmpty').style.display = 'block';
+  } finally {
+    btn.textContent = '↻ シートから更新';
+    btn.disabled = false;
+  }
+}
+
+function getOrderStatusBadge(completion) {
+  if (!completion) return '<span class="badge badge-gray">製造中</span>';
+  if (completion.includes('完成済み') || completion.includes('完成')) return '<span class="badge badge-green">完成済み</span>';
+  if (completion.includes('未納品')) return '<span class="badge badge-red">未納品</span>';
+  if (completion.includes('作業中') || completion.includes('作業開始')) return '<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:#fff3e0;color:#e65100">作業中</span>';
+  return `<span class="badge badge-gray">${esc(completion.substring(0,10))}</span>`;
+}
+
+function renderOrders() {
+  const search = document.getElementById('orderSearch').value.toLowerCase();
+  const statusFilter = document.getElementById('orderStatusFilter').value;
+
+  let data = [...orderSheetData];
+  if (search) data = data.filter(o => o.商品名.toLowerCase().includes(search) || o.納品先.toLowerCase().includes(search));
+  if (statusFilter === 'active') data = data.filter(o => !o.工場完成.includes('完成済み'));
+  if (statusFilter === 'done') data = data.filter(o => o.工場完成.includes('完成済み') || o.工場完成.includes('完成'));
+
+  const tbody = document.getElementById('ordersBody');
+  const empty = document.getElementById('ordersEmpty');
+  tbody.innerHTML = '';
+
+  if (data.length === 0) {
+    empty.style.display = 'block';
+    if (orderSheetData.length > 0) empty.textContent = '該当するデータがありません';
+  } else {
+    empty.style.display = 'none';
+    data.forEach(order => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #f0f0f0';
+      const trackingHtml = order.追跡番号
+        ? order.追跡番号.split('\n').map(line => {
+            const urlMatch = line.match(/https?:\/\/\S+/);
+            return urlMatch
+              ? `<a href="${urlMatch[0]}" target="_blank" style="color:#4f6ef7;font-size:11px">${esc(line.substring(0,30))}…</a>`
+              : `<span style="font-size:11px;color:#888">${esc(line.substring(0,30))}</span>`;
+          }).join('<br>')
+        : '-';
+      tr.innerHTML = `
+        <td style="padding:9px 12px;white-space:nowrap;color:#888;font-size:12px">${esc(order.注文日) || '-'}</td>
+        <td style="padding:9px 12px;font-weight:600;min-width:160px">${esc(order.商品名)}</td>
+        <td style="padding:9px 12px;text-align:right;font-weight:600">${order.注文数 !== '' ? Number(order.注文数).toLocaleString() : '-'}</td>
+        <td style="padding:9px 12px;font-size:12px;color:#666">${esc(order.納品先) || '-'}</td>
+        <td style="padding:9px 12px">${getOrderStatusBadge(order.工場完成)}</td>
+        <td style="padding:9px 12px;white-space:nowrap;font-size:12px">${esc(order.発送予定日) || '-'}</td>
+        <td style="padding:9px 12px;max-width:200px">${trackingHtml}</td>
+        <td style="padding:9px 12px;text-align:right;font-size:12px">${order.発送待ち !== '' ? Number(order.発送待ち).toLocaleString() : '-'}</td>
+        <td style="padding:9px 12px;max-width:200px;white-space:normal;font-size:11px;color:#888">${esc((order.備考||'').substring(0,60)) || '-'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+}
+
+// --- Load on start: fetch from Sheets, fallback to cache ---
+(async () => {
+  const savedData = localStorage.getItem('inventoryData');
+  if (savedData) {
+    try {
+      inventoryData = JSON.parse(savedData);
+      updateStats();
+      renderTable();
+      document.getElementById('statsArea').style.display = 'grid';
+      document.getElementById('controlsArea').style.display = 'flex';
+      document.getElementById('inventoryTable').style.display = 'table';
+      document.getElementById('noData').style.display = 'none';
+      document.getElementById('lastUpdated').textContent = 'キャッシュから読み込み中...';
+    } catch(e) {}
+  }
+  await fetchFromSheets();
+})();
+</script>
+</body>
+</html>
