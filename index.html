@@ -1614,26 +1614,47 @@ const platformMeta = {
 
 function loadPlatformReport(file, platform) {
   currentImportPlatform = platform;
-  const reader = new FileReader();
-  reader.onload = e => {
+  document.getElementById(`status_${platform}`).textContent = '読み込み中...';
+
+  // UTF-8で読み込み、文字化けがあればShift-JISで再試行
+  const tryRead = (encoding) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsText(file, encoding);
+  });
+
+  tryRead('UTF-8').then(text => {
+    // 文字化け検出（置換文字�が多い場合はSJIS）
+    const garbled = (text.match(/�/g) || []).length > 5;
+    return garbled ? tryRead('Shift-JIS') : text;
+  }).then(text => {
     try {
-      parsePlatformCsv(e.target.result, platform);
+      parsePlatformCsv(text, platform);
     } catch(err) {
-      document.getElementById(`status_${platform}`).textContent = '❌ 読み込みに失敗: ' + err.message;
+      document.getElementById(`status_${platform}`).textContent = '❌ 読み込み失敗: ' + err.message;
     }
-  };
-  reader.readAsText(file, 'UTF-8');
+  }).catch(err => {
+    document.getElementById(`status_${platform}`).textContent = '❌ ファイル読み込み失敗: ' + err.message;
+  });
 }
 
 function parsePlatformCsv(text, platform) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l);
   if (lines.length < 2) throw new Error('データが少なすぎます');
 
-  const sep = lines[0].includes('\t') ? '\t' : ',';
+  // セパレータを複数行で判定（メタデータ行対策）
+  const tabCount   = lines.slice(0, 10).reduce((s, l) => s + (l.match(/\t/g)||[]).length, 0);
+  const commaCount = lines.slice(0, 10).reduce((s, l) => s + (l.match(/,/g)||[]).length, 0);
+  const sep = tabCount >= commaCount ? '\t' : ',';
 
+  // 列数が最も多い行をヘッダーとして検出（最初の20行以内）
   let headerIdx = 0;
-  for (let i = 0; i < Math.min(5, lines.length); i++) {
-    if (lines[i].split(sep).length >= 3) { headerIdx = i; break; }
+  let maxCols = 0;
+  for (let i = 0; i < Math.min(20, lines.length); i++) {
+    const colCount = lines[i].split(sep).length;
+    if (colCount > maxCols) { maxCols = colCount; headerIdx = i; }
+    if (colCount >= 5) break;
   }
 
   platformCsvHeaders = lines[headerIdx].split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
@@ -1649,22 +1670,27 @@ function parsePlatformCsv(text, platform) {
   // 商品名列の推定
   const nameGuess = platformCsvHeaders.findIndex(h =>
     h.includes('商品名') || h.includes('タイトル') || h.toLowerCase().includes('title') ||
-    h.includes('製品') || h.includes('商品タイトル') || h.includes('商品管理番号')
+    h.includes('製品') || h.includes('商品タイトル') || h.includes('商品管理番号') ||
+    h.includes('子ASIN') || h.toLowerCase().includes('sku')
   );
-  // 販売数列の推定（プラットフォームごとのキーワード含む）
+  // 販売数列の推定
   const qtyGuess = platformCsvHeaders.findIndex(h =>
     h.includes('30日') || h.includes('販売数') || h.includes('受注数') || h.includes('注文数') ||
     h.includes('売上数量') || h.includes('注文商品点数') || h.includes('注文個数') ||
-    h.toLowerCase().includes('units ordered') || h.toLowerCase().includes('units_ordered')
+    h.toLowerCase().includes('units ordered') || h.toLowerCase().includes('units_ordered') ||
+    h.includes('販売個数') || h.includes('出荷数')
   );
 
   const meta = platformMeta[platform];
   document.getElementById('platformMappingTitle').textContent = `${meta.label} レポートの列を選択`;
-  document.getElementById('platformMappingSubtitle').textContent = `${platformCsvRows.length}行のデータを検出しました。商品名と販売数量の列を指定してください。`;
+  document.getElementById('platformMappingSubtitle').textContent =
+    `${platformCsvRows.length}行 / ${platformCsvHeaders.length}列を検出しました（ヘッダー行${headerIdx + 1}行目）。商品名と販売数量の列を指定してください。`;
 
-  const buildOptions = (guessIdx) => platformCsvHeaders.map((h, i) =>
-    `<option value="${i}"${i === guessIdx ? ' selected' : ''}>${h}</option>`
-  ).join('');
+  // プレビュー付きオプション生成
+  const buildOptions = (guessIdx) => platformCsvHeaders.map((h, i) => {
+    const sample = platformCsvRows.slice(0, 3).map(r => r[h]).filter(v => v).join(' / ').substring(0, 30);
+    return `<option value="${i}"${i === guessIdx ? ' selected' : ''}>${h}${sample ? ' ［' + sample + '…］' : ''}</option>`;
+  }).join('');
 
   document.getElementById('platformNameCol').innerHTML = buildOptions(nameGuess >= 0 ? nameGuess : 0);
   document.getElementById('platformQtyCol').innerHTML = buildOptions(qtyGuess >= 0 ? qtyGuess : 0);
@@ -1672,31 +1698,45 @@ function parsePlatformCsv(text, platform) {
 }
 
 function importPlatformData() {
-  const platform = currentImportPlatform;
-  const nameKey = platformCsvHeaders[parseInt(document.getElementById('platformNameCol').value)];
-  const qtyKey  = platformCsvHeaders[parseInt(document.getElementById('platformQtyCol').value)];
+  try {
+    const platform = currentImportPlatform;
+    if (!platform || !salesMaps[platform]) throw new Error('プラットフォームが未選択です');
 
-  let matched = 0, total = 0;
-  platformCsvRows.forEach(row => {
-    const csvName = (row[nameKey] || '').trim();
-    const qty = parseInt(String(row[qtyKey] || '').replace(/[^0-9]/g, '')) || 0;
-    if (!csvName) return;
-    total++;
-    const invItem = inventoryData.find(r =>
-      r.商品名 === csvName || r.商品名.includes(csvName) || csvName.includes(r.商品名)
-    );
-    if (invItem) {
-      salesMaps[platform][invItem.商品名] = qty;
-      matched++;
-    }
-  });
+    const nameIdx = parseInt(document.getElementById('platformNameCol').value);
+    const qtyIdx  = parseInt(document.getElementById('platformQtyCol').value);
+    const nameKey = platformCsvHeaders[nameIdx];
+    const qtyKey  = platformCsvHeaders[qtyIdx];
 
-  localStorage.setItem(`orderCalcSalesMap_${platform}`, JSON.stringify(salesMaps[platform]));
-  document.getElementById('platformMappingModal').style.display = 'none';
-  const meta = platformMeta[platform];
-  document.getElementById(`status_${platform}`).textContent =
-    `✅ ${total}件中 ${matched}件マッチ` + (matched < total ? '（残りは手動入力）' : '');
-  renderOrderCalc();
+    if (!nameKey || !qtyKey) throw new Error('列が正しく選択されていません');
+
+    // 正規化して比較（スペース除去・小文字化）
+    const normalize = s => String(s || '').replace(/[\s　]/g, '').toLowerCase();
+    const invNormalized = inventoryData.map(r => ({ item: r, norm: normalize(r.商品名) }));
+
+    let matched = 0, total = 0;
+    platformCsvRows.forEach(row => {
+      const csvName = (row[nameKey] || '').trim();
+      const qty = parseInt(String(row[qtyKey] || '').replace(/[^0-9]/g, '')) || 0;
+      if (!csvName) return;
+      total++;
+      const normCsv = normalize(csvName);
+      const found = invNormalized.find(({ norm }) =>
+        norm === normCsv || norm.includes(normCsv) || normCsv.includes(norm)
+      );
+      if (found) {
+        salesMaps[platform][found.item.商品名] = (salesMaps[platform][found.item.商品名] || 0) + qty;
+        matched++;
+      }
+    });
+
+    localStorage.setItem(`orderCalcSalesMap_${platform}`, JSON.stringify(salesMaps[platform]));
+    document.getElementById('platformMappingModal').style.display = 'none';
+    document.getElementById(`status_${platform}`).textContent =
+      `✅ ${total}件中 ${matched}件マッチ` + (matched < total ? `（${total - matched}件は手動入力）` : '');
+    renderOrderCalc();
+  } catch(err) {
+    alert('インポートエラー: ' + err.message);
+  }
 }
 
 function renderOrderCalc() {
