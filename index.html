@@ -286,6 +286,8 @@
     <button class="tab" onclick="switchTab('history')">入出庫履歴</button>
     <button class="tab" onclick="switchTab('chatwork')">💬 Chatwork連携</button>
     <button class="tab" onclick="switchTab('orders')">📦 発注リスト</button>
+    <button class="tab" onclick="switchTab('teams')">🟣 Teams連携</button>
+    <button class="tab" onclick="switchTab('orderCalc')">🧮 発注計算</button>
   </div>
 
   <!-- Inventory Tab -->
@@ -425,6 +427,42 @@
     </div>
   </div>
 
+  <!-- Teams Tab -->
+  <div id="teamsTab" style="display:none">
+    <div class="controls">
+      <input type="text" id="teamsSearch" placeholder="商品名で検索..." oninput="renderTeams()">
+      <select id="teamsType" onchange="renderTeams()">
+        <option value="all">すべて</option>
+        <option value="入庫">入庫のみ</option>
+        <option value="出庫">出庫のみ</option>
+      </select>
+      <div class="spacer"></div>
+      <button class="btn btn-outline" onclick="openTeamsSettings()">⚙️ Teams設定</button>
+      <button class="btn btn-primary" id="teamsFetchBtn" onclick="fetchTeams()">↻ Teamsから取得</button>
+    </div>
+    <div style="background:#f3e5f5;border:1px solid #9c27b0;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px;color:#4a148c">
+      🟣 TeamsチャンネルのメッセージをAIが自動解析します。内容を確認してから「在庫に反映」してください。
+    </div>
+    <div class="history-table-wrap">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">日時</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">送信者</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">商品名</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">種別</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right">数量</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">倉庫</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left">メッセージ</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:center">操作</th>
+          </tr>
+        </thead>
+        <tbody id="teamsBody"></tbody>
+      </table>
+      <div class="history-empty" id="teamsEmpty">「Teams設定」でAPI情報を入力後、「Teamsから取得」を押してください</div>
+    </div>
+  </div>
+
   <!-- History Tab -->
   <div id="historyTab" style="display:none">
     <div class="controls">
@@ -498,6 +536,122 @@
     </div>
   </div>
 </div>
+
+<!-- Teams Settings Modal -->
+<div class="modal-overlay" id="teamsSettingsOverlay">
+  <div class="modal" style="width:500px">
+    <h2>🟣 Teams API 設定</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:16px">Azure AD でアプリ登録後、以下の情報を入力してください。<br>権限: <code>ChannelMessage.Read.All</code>（アプリケーション）が必要です。</p>
+    <div class="field">
+      <label>テナントID</label>
+      <input type="text" id="cfgTenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+    </div>
+    <div class="field">
+      <label>クライアントID（アプリケーションID）</label>
+      <input type="text" id="cfgClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+    </div>
+    <div class="field">
+      <label>クライアントシークレット</label>
+      <input type="password" id="cfgClientSecret" placeholder="Azure AD で生成したシークレット">
+    </div>
+    <div class="field">
+      <label>チームID</label>
+      <input type="text" id="cfgTeamId" placeholder="チームURL または チームの設定から確認">
+    </div>
+    <div class="field">
+      <label>チャンネルID</label>
+      <input type="text" id="cfgChannelId" placeholder="チャンネルのリンクをコピーから確認">
+    </div>
+    <div style="background:#e3f2fd;border-radius:6px;padding:10px 14px;font-size:12px;color:#1565c0;margin-bottom:12px">
+      💡 チームID・チャンネルID の確認方法：Teamsでチャンネルを右クリック →「チャンネルへのリンクをコピー」→ URLの <code>groupId=</code> がチームID、<code>channel/</code> 以降がチャンネルIDです
+    </div>
+    <div class="actions">
+      <button class="btn btn-outline" onclick="closeTeamsSettings()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveTeamsSettings()">保存してサーバーに送信</button>
+    </div>
+  </div>
+</div>
+
+  <!-- Order Calc Tab -->
+  <div id="orderCalcTab" style="display:none">
+    <!-- Amazon CSV Upload -->
+    <div style="background:#f0f4ff;border:1px solid #c0d0f8;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div class="section-header">📊 Amazon販売レポートを取り込む（月次）</div>
+      <p style="font-size:13px;color:#555;margin-bottom:10px">
+        セラーセントラル → レポート → ビジネスレポート → 販売数でCSVをダウンロードして読み込んでください（手動入力も可能です）
+      </p>
+      <div id="amazonReportUploadArea" style="border:2px dashed #c0c4d6;border-radius:8px;padding:16px;text-align:center;cursor:pointer;background:white;transition:border-color 0.2s" onclick="document.getElementById('amazonReportInput').click()">
+        <div style="font-size:24px;margin-bottom:6px">📤</div>
+        <div style="font-size:13px;color:#666">Amazonレポート CSVをドロップ または クリックして選択</div>
+        <input type="file" id="amazonReportInput" accept=".csv,.txt,.tsv" style="display:none">
+      </div>
+      <div id="amazonReportStatus" style="font-size:13px;color:#555;margin-top:8px;min-height:18px"></div>
+    </div>
+
+    <!-- Summary -->
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div class="stat-card alert" style="min-width:160px">
+        <div class="label">発注が必要な商品</div>
+        <div class="value" id="orderCalcNeedCount">-</div>
+      </div>
+      <div class="stat-card ok" style="min-width:160px">
+        <div class="label">在庫十分な商品</div>
+        <div class="value" id="orderCalcOkCount">-</div>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#2e7d32">
+      💡 計算式：<strong>日販 × (リードタイム + 安全在庫日数) = 推奨在庫数</strong>　／　推奨在庫数 − 現在庫 = 発注推奨数（マイナスの場合は発注不要）
+      <br>リードタイム・安全在庫日数・月間販売数はすべてブラウザに自動保存されます
+    </div>
+
+    <!-- Empty state -->
+    <div id="orderCalcEmpty" style="display:none;text-align:center;padding:40px;color:#bbb">
+      <div style="font-size:40px;margin-bottom:10px">📋</div>
+      <div>在庫データを読み込んでから発注計算を利用してください</div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap" id="orderCalcTableWrap">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left;white-space:nowrap;position:sticky;left:0">商品名</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">月間販売数</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">日販</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">リードタイム(日)</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">安全在庫日数</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">現在庫合計</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">推奨在庫数</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">発注推奨数</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:center;white-space:nowrap">判定</th>
+          </tr>
+        </thead>
+        <tbody id="orderCalcBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Amazon Column Mapping Modal -->
+  <div id="amazonMappingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:12px;padding:24px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">📊 Amazonレポートの列を選択</div>
+      <div id="amazonMappingSubtitle" style="font-size:13px;color:#666;margin-bottom:16px"></div>
+      <div class="field">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">商品名の列</label>
+        <select id="amazonNameCol" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">月間販売数の列</label>
+        <select id="amazonQtyCol" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="document.getElementById('amazonMappingModal').style.display='none'">キャンセル</button>
+        <button class="btn btn-primary" onclick="importAmazonData()">インポート</button>
+      </div>
+    </div>
+  </div>
 
 <footer>NEWBOX 在庫管理システム</footer>
 
@@ -1100,6 +1254,161 @@ function applyCwRecord(idx) {
   renderChatwork();
 }
 
+// --- Teams連携 ---
+let teamsData = [];
+
+async function fetchTeams() {
+  const btn = document.getElementById('teamsFetchBtn');
+  btn.textContent = '取得中...';
+  btn.disabled = true;
+  document.getElementById('teamsEmpty').textContent = 'Teamsからメッセージを取得中...';
+  document.getElementById('teamsEmpty').style.display = 'block';
+  document.getElementById('teamsBody').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/teams/shipments');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({error: res.statusText}));
+      throw new Error(err.error || '取得失敗: ' + res.status);
+    }
+    teamsData = await res.json();
+    renderTeams();
+  } catch(e) {
+    document.getElementById('teamsEmpty').textContent = '取得に失敗しました: ' + e.message;
+  } finally {
+    btn.textContent = '↻ Teamsから取得';
+    btn.disabled = false;
+  }
+}
+
+function renderTeams() {
+  const search = document.getElementById('teamsSearch').value.toLowerCase();
+  const type = document.getElementById('teamsType').value;
+  let data = [...teamsData];
+  if (search) data = data.filter(r => r.商品名.toLowerCase().includes(search) || r.メッセージ.toLowerCase().includes(search));
+  if (type !== 'all') data = data.filter(r => r.種別 === type);
+
+  const tbody = document.getElementById('teamsBody');
+  const empty = document.getElementById('teamsEmpty');
+  tbody.innerHTML = '';
+
+  if (data.length === 0) {
+    empty.style.display = 'block';
+    empty.textContent = teamsData.length === 0
+      ? '「Teams設定」でAPI情報を入力後、「Teamsから取得」を押してください'
+      : '該当するデータがありません';
+    return;
+  }
+  empty.style.display = 'none';
+
+  data.forEach((row, i) => {
+    const typeColor = row.種別 === '入庫' ? '#27ae60' : '#e74c3c';
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f0f0f0';
+    tr.innerHTML = `
+      <td style="padding:9px 12px;font-size:12px;color:#888;white-space:nowrap">${esc(row.日時)}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#666">${esc(row.送信者)}</td>
+      <td style="padding:9px 12px;font-weight:600">${esc(row.商品名)}</td>
+      <td style="padding:9px 12px"><span style="color:${typeColor};font-weight:700">${esc(row.種別)}</span></td>
+      <td style="padding:9px 12px;text-align:right;font-weight:600">${row.数量.toLocaleString()}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#888">${esc(row.倉庫.replace('在庫',''))}</td>
+      <td style="padding:9px 12px;font-size:11px;color:#999;max-width:260px;white-space:normal">${esc(row.メッセージ)}</td>
+      <td style="padding:9px 12px;text-align:center">
+        <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;background:#7b1fa2" onclick="applyTeamsRecord(${i})">在庫に反映</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function applyTeamsRecord(idx) {
+  const row = teamsData[idx];
+  if (!row) return;
+
+  const product = inventoryData.find(r =>
+    r.商品名 === row.商品名 ||
+    r.商品名.includes(row.商品名) ||
+    row.商品名.includes(r.商品名)
+  );
+  if (!product) {
+    alert(`「${row.商品名}」が在庫リストに見つかりません。\n商品名を確認してください。`);
+    return;
+  }
+
+  const warehouse = row.倉庫;
+  const before = product[warehouse] || 0;
+  const after = row.種別 === '入庫' ? before + row.数量 : Math.max(0, before - row.数量);
+
+  if (!confirm(`${product.商品名}\n${warehouse.replace('在庫','')}: ${before} → ${after}\n\nこの内容で在庫を更新しますか？`)) return;
+
+  product[warehouse] = after;
+  product.在庫合計 = product.FBA在庫 + product.RSL在庫 + product.本社101在庫 + product.本社102在庫 + product.愛媛在庫;
+  product.合計金額 = product.在庫合計 * product.仕入れ価格;
+
+  history.unshift({
+    日時: new Date().toLocaleString('ja-JP'),
+    商品名: product.商品名,
+    種別: row.種別,
+    数量: row.数量,
+    変更後在庫: product.在庫合計,
+    倉庫: warehouse.replace('在庫',''),
+    メモ: 'Teams: ' + row.メッセージ.substring(0, 50),
+  });
+  localStorage.setItem('inventoryHistory', JSON.stringify(history));
+  localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+
+  updateStats();
+  renderTable();
+  teamsData.splice(idx, 1);
+  renderTeams();
+}
+
+// Teams設定モーダル
+function openTeamsSettings() {
+  const saved = JSON.parse(localStorage.getItem('teamsConfig') || '{}');
+  document.getElementById('cfgTenantId').value = saved.TEAMS_TENANT_ID || '';
+  document.getElementById('cfgClientId').value = saved.TEAMS_CLIENT_ID || '';
+  document.getElementById('cfgClientSecret').value = saved.TEAMS_CLIENT_SECRET || '';
+  document.getElementById('cfgTeamId').value = saved.TEAMS_TEAM_ID || '';
+  document.getElementById('cfgChannelId').value = saved.TEAMS_CHANNEL_ID || '';
+  document.getElementById('teamsSettingsOverlay').classList.add('show');
+}
+
+function closeTeamsSettings() {
+  document.getElementById('teamsSettingsOverlay').classList.remove('show');
+}
+
+document.getElementById('teamsSettingsOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('teamsSettingsOverlay')) closeTeamsSettings();
+});
+
+async function saveTeamsSettings() {
+  const cfg = {
+    TEAMS_TENANT_ID:     document.getElementById('cfgTenantId').value.trim(),
+    TEAMS_CLIENT_ID:     document.getElementById('cfgClientId').value.trim(),
+    TEAMS_CLIENT_SECRET: document.getElementById('cfgClientSecret').value.trim(),
+    TEAMS_TEAM_ID:       document.getElementById('cfgTeamId').value.trim(),
+    TEAMS_CHANNEL_ID:    document.getElementById('cfgChannelId').value.trim(),
+  };
+  localStorage.setItem('teamsConfig', JSON.stringify(cfg));
+  try {
+    const res = await fetch('/api/teams/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(cfg),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert('✅ 設定を保存しました。\nサーバーを再起動すると反映されます。\n（ターミナルで Ctrl+C → 再起動）');
+      closeTeamsSettings();
+    } else {
+      alert('エラー: ' + data.error);
+    }
+  } catch(e) {
+    alert('サーバーへの送信に失敗しました: ' + e.message);
+  }
+}
+
 // --- Tabs ---
 function switchTab(tab) {
   currentTab = tab;
@@ -1107,16 +1416,21 @@ function switchTab(tab) {
   document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
   document.getElementById('chatworkTab').style.display = tab === 'chatwork' ? 'block' : 'none';
   document.getElementById('ordersTab').style.display = tab === 'orders' ? 'block' : 'none';
+  document.getElementById('teamsTab').style.display = tab === 'teams' ? 'block' : 'none';
+  document.getElementById('orderCalcTab').style.display = tab === 'orderCalc' ? 'block' : 'none';
   document.querySelectorAll('.tab').forEach((t, i) => {
     t.classList.toggle('active',
       (i === 0 && tab === 'inventory') ||
       (i === 1 && tab === 'history') ||
       (i === 2 && tab === 'chatwork') ||
-      (i === 3 && tab === 'orders')
+      (i === 3 && tab === 'orders') ||
+      (i === 4 && tab === 'teams') ||
+      (i === 5 && tab === 'orderCalc')
     );
   });
   if (tab === 'history') renderHistory();
   if (tab === 'orders') { if (orderSheetData.length === 0) fetchOrderSheet(); else renderOrders(); }
+  if (tab === 'orderCalc') renderOrderCalc();
 }
 
 // --- Export ---
@@ -1233,6 +1547,213 @@ function renderOrders() {
       tbody.appendChild(tr);
     });
   }
+}
+
+// === 発注計算 ===
+let orderCalcSalesMap = JSON.parse(localStorage.getItem('orderCalcSalesMap') || '{}');
+let orderCalcSettings = JSON.parse(localStorage.getItem('orderCalcSettings') || '{}');
+let amazonCsvHeaders = [];
+let amazonCsvRows = [];
+
+// Amazon CSV file input setup
+document.getElementById('amazonReportInput').addEventListener('change', e => {
+  if (e.target.files[0]) loadAmazonReport(e.target.files[0]);
+});
+const amazonUploadArea = document.getElementById('amazonReportUploadArea');
+amazonUploadArea.addEventListener('dragover', e => { e.preventDefault(); amazonUploadArea.style.borderColor = '#4f6ef7'; });
+amazonUploadArea.addEventListener('dragleave', () => { amazonUploadArea.style.borderColor = '#c0c4d6'; });
+amazonUploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  amazonUploadArea.style.borderColor = '#c0c4d6';
+  if (e.dataTransfer.files[0]) loadAmazonReport(e.dataTransfer.files[0]);
+});
+
+function loadAmazonReport(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      parseAmazonReportCsv(e.target.result);
+    } catch(err) {
+      document.getElementById('amazonReportStatus').textContent = '❌ 読み込みに失敗: ' + err.message;
+    }
+  };
+  // Try UTF-8 first, fallback to Shift-JIS
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseAmazonReportCsv(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  if (lines.length < 2) throw new Error('データが少なすぎます');
+
+  // Detect separator (tab or comma)
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+
+  // Find header row (first row with 3+ columns)
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    if (lines[i].split(sep).length >= 3) { headerIdx = i; break; }
+  }
+
+  amazonCsvHeaders = lines[headerIdx].split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
+  amazonCsvRows = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const cols = lines[i].split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+    if (cols.every(c => !c)) continue;
+    const row = {};
+    amazonCsvHeaders.forEach((h, idx) => { row[h] = cols[idx] || ''; });
+    amazonCsvRows.push(row);
+  }
+
+  // Auto-guess columns
+  const nameGuess = amazonCsvHeaders.findIndex(h =>
+    h.includes('商品名') || h.includes('タイトル') || h.toLowerCase().includes('title') || h.includes('製品') || h.includes('商品タイトル')
+  );
+  const qtyGuess = amazonCsvHeaders.findIndex(h =>
+    h.includes('30日') || h.includes('販売数') || h.toLowerCase().includes('units ordered') ||
+    h.toLowerCase().includes('units_ordered') || h.includes('注文数') || h.includes('売上数量') || h.includes('注文商品点数')
+  );
+
+  const modal = document.getElementById('amazonMappingModal');
+  document.getElementById('amazonMappingSubtitle').textContent = `${amazonCsvRows.length}行のデータを検出しました。商品名と販売数量の列を指定してください。`;
+
+  const buildOptions = (guessIdx) => amazonCsvHeaders.map((h, i) =>
+    `<option value="${i}"${i === guessIdx ? ' selected' : ''}>${h}</option>`
+  ).join('');
+
+  document.getElementById('amazonNameCol').innerHTML = buildOptions(nameGuess >= 0 ? nameGuess : 0);
+  document.getElementById('amazonQtyCol').innerHTML = buildOptions(qtyGuess >= 0 ? qtyGuess : 0);
+  modal.style.display = 'flex';
+}
+
+function importAmazonData() {
+  const nameKey = amazonCsvHeaders[parseInt(document.getElementById('amazonNameCol').value)];
+  const qtyKey = amazonCsvHeaders[parseInt(document.getElementById('amazonQtyCol').value)];
+
+  let matched = 0, total = 0;
+  amazonCsvRows.forEach(row => {
+    const csvName = (row[nameKey] || '').trim();
+    const qty = parseInt(String(row[qtyKey] || '').replace(/[^0-9]/g, '')) || 0;
+    if (!csvName) return;
+    total++;
+    const invItem = inventoryData.find(r =>
+      r.商品名 === csvName ||
+      r.商品名.includes(csvName) ||
+      csvName.includes(r.商品名)
+    );
+    if (invItem) {
+      orderCalcSalesMap[invItem.商品名] = qty;
+      matched++;
+    }
+  });
+
+  localStorage.setItem('orderCalcSalesMap', JSON.stringify(orderCalcSalesMap));
+  document.getElementById('amazonMappingModal').style.display = 'none';
+  document.getElementById('amazonReportStatus').textContent =
+    `✅ ${total}件中 ${matched}件の商品をマッチしました。` +
+    (matched < total ? ' マッチしなかった商品は手動で販売数を入力してください。' : '');
+  renderOrderCalc();
+}
+
+function renderOrderCalc() {
+  if (inventoryData.length === 0) {
+    document.getElementById('orderCalcEmpty').style.display = 'block';
+    document.getElementById('orderCalcTableWrap').style.display = 'none';
+    return;
+  }
+  document.getElementById('orderCalcEmpty').style.display = 'none';
+  document.getElementById('orderCalcTableWrap').style.display = 'block';
+
+  const tbody = document.getElementById('orderCalcBody');
+  tbody.innerHTML = '';
+
+  let needCount = 0, okCount = 0;
+
+  inventoryData.forEach(row => {
+    const productName = row.商品名;
+    const monthlyQty = orderCalcSalesMap[productName] || 0;
+    const dailySales = monthlyQty / 30;
+    const cfg = orderCalcSettings[productName] || {};
+    const leadTime = cfg.leadTime || 0;
+    const safetyDays = cfg.safetyDays || 0;
+    const hasCalcData = monthlyQty > 0 && (leadTime + safetyDays) > 0;
+    const targetStock = hasCalcData ? Math.ceil(dailySales * (leadTime + safetyDays)) : 0;
+    const orderQty = hasCalcData ? Math.max(0, targetStock - row.在庫合計) : null;
+    const needOrder = orderQty !== null && orderQty > 0;
+
+    if (needOrder) needCount++;
+    else if (orderQty === 0) okCount++;
+
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid #f0f0f0' + (needOrder ? ';background:#fff5f5' : '');
+
+    function makeTd(styles) {
+      const td = document.createElement('td');
+      td.style.cssText = 'padding:9px 12px;' + (styles || '');
+      return td;
+    }
+    function makeNumInput(value, width, onChange) {
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '0';
+      inp.value = value || '';
+      inp.placeholder = '0';
+      inp.style.cssText = `width:${width}px;border:1px solid #ddd;border-radius:4px;padding:3px 6px;text-align:right;font-size:13px`;
+      inp.addEventListener('change', onChange);
+      return inp;
+    }
+
+    const tdName = makeTd('font-weight:600;min-width:160px;white-space:normal');
+    tdName.textContent = productName;
+
+    const tdSales = makeTd('text-align:right');
+    tdSales.appendChild(makeNumInput(monthlyQty || '', 80, () => {
+      orderCalcSalesMap[productName] = parseInt(tdSales.querySelector('input').value) || 0;
+      localStorage.setItem('orderCalcSalesMap', JSON.stringify(orderCalcSalesMap));
+      renderOrderCalc();
+    }));
+
+    const tdDaily = makeTd('text-align:right;color:#666');
+    tdDaily.textContent = monthlyQty ? dailySales.toFixed(1) : '-';
+
+    const tdLead = makeTd('text-align:right');
+    tdLead.appendChild(makeNumInput(leadTime || '', 70, () => {
+      if (!orderCalcSettings[productName]) orderCalcSettings[productName] = {};
+      orderCalcSettings[productName].leadTime = parseInt(tdLead.querySelector('input').value) || 0;
+      localStorage.setItem('orderCalcSettings', JSON.stringify(orderCalcSettings));
+      renderOrderCalc();
+    }));
+
+    const tdSafety = makeTd('text-align:right');
+    tdSafety.appendChild(makeNumInput(safetyDays || '', 70, () => {
+      if (!orderCalcSettings[productName]) orderCalcSettings[productName] = {};
+      orderCalcSettings[productName].safetyDays = parseInt(tdSafety.querySelector('input').value) || 0;
+      localStorage.setItem('orderCalcSettings', JSON.stringify(orderCalcSettings));
+      renderOrderCalc();
+    }));
+
+    const tdStock = makeTd('text-align:right;font-weight:600');
+    tdStock.textContent = row.在庫合計.toLocaleString();
+
+    const tdTarget = makeTd('text-align:right;font-weight:600');
+    tdTarget.textContent = targetStock > 0 ? targetStock.toLocaleString() : '-';
+
+    const tdOrder = makeTd(`text-align:right;font-weight:700;color:${needOrder ? '#e74c3c' : (orderQty === 0 ? '#27ae60' : '#999')}`);
+    tdOrder.textContent = orderQty === null ? '-' : orderQty.toLocaleString();
+
+    const tdJudge = makeTd('text-align:center');
+    if (orderQty === null) {
+      tdJudge.innerHTML = '<span style="color:#bbb;font-size:12px">データ未入力</span>';
+    } else if (needOrder) {
+      tdJudge.innerHTML = `<span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700">発注要</span>`;
+    } else {
+      tdJudge.innerHTML = '<span style="background:#e8f5e9;color:#27ae60;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">在庫十分</span>';
+    }
+
+    tr.append(tdName, tdSales, tdDaily, tdLead, tdSafety, tdStock, tdTarget, tdOrder, tdJudge);
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('orderCalcNeedCount').textContent = needCount;
+  document.getElementById('orderCalcOkCount').textContent = okCount;
 }
 
 // --- Load on start: fetch from Sheets, fallback to cache ---
