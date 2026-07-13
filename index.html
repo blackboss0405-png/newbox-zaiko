@@ -574,18 +574,35 @@
 
   <!-- Order Calc Tab -->
   <div id="orderCalcTab" style="display:none">
-    <!-- Amazon CSV Upload -->
-    <div style="background:#f0f4ff;border:1px solid #c0d0f8;border-radius:10px;padding:16px;margin-bottom:16px">
-      <div class="section-header">📊 Amazon販売レポートを取り込む（月次）</div>
-      <p style="font-size:13px;color:#555;margin-bottom:10px">
-        セラーセントラル → レポート → ビジネスレポート → 販売数でCSVをダウンロードして読み込んでください（手動入力も可能です）
-      </p>
-      <div id="amazonReportUploadArea" style="border:2px dashed #c0c4d6;border-radius:8px;padding:16px;text-align:center;cursor:pointer;background:white;transition:border-color 0.2s" onclick="document.getElementById('amazonReportInput').click()">
-        <div style="font-size:24px;margin-bottom:6px">📤</div>
-        <div style="font-size:13px;color:#666">Amazonレポート CSVをドロップ または クリックして選択</div>
-        <input type="file" id="amazonReportInput" accept=".csv,.txt,.tsv" style="display:none">
+    <!-- Platform CSV Upload - 3 columns -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px">
+      <!-- Amazon -->
+      <div style="background:#fff8f0;border:1px solid #f5c99b;border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#e65100">🟠 Amazon</div>
+        <div id="uploadArea_amazon" style="border:2px dashed #f5c99b;border-radius:6px;padding:12px;text-align:center;cursor:pointer;background:white;font-size:12px;color:#888" onclick="document.getElementById('fileInput_amazon').click()">
+          CSVをドロップ または クリック
+          <input type="file" id="fileInput_amazon" accept=".csv,.txt,.tsv" style="display:none">
+        </div>
+        <div id="status_amazon" style="font-size:12px;color:#555;margin-top:6px;min-height:16px"></div>
       </div>
-      <div id="amazonReportStatus" style="font-size:13px;color:#555;margin-top:8px;min-height:18px"></div>
+      <!-- 楽天 -->
+      <div style="background:#fff0f0;border:1px solid #f5a0a0;border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#c62828">🔴 楽天市場</div>
+        <div id="uploadArea_rakuten" style="border:2px dashed #f5a0a0;border-radius:6px;padding:12px;text-align:center;cursor:pointer;background:white;font-size:12px;color:#888" onclick="document.getElementById('fileInput_rakuten').click()">
+          CSVをドロップ または クリック
+          <input type="file" id="fileInput_rakuten" accept=".csv,.txt,.tsv" style="display:none">
+        </div>
+        <div id="status_rakuten" style="font-size:12px;color:#555;margin-top:6px;min-height:16px"></div>
+      </div>
+      <!-- Yahoo -->
+      <div style="background:#fffde7;border:1px solid #ffe082;border-radius:10px;padding:14px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#f57f17">🟡 Yahoo!ショッピング</div>
+        <div id="uploadArea_yahoo" style="border:2px dashed #ffe082;border-radius:6px;padding:12px;text-align:center;cursor:pointer;background:white;font-size:12px;color:#888" onclick="document.getElementById('fileInput_yahoo').click()">
+          CSVをドロップ または クリック
+          <input type="file" id="fileInput_yahoo" accept=".csv,.txt,.tsv" style="display:none">
+        </div>
+        <div id="status_yahoo" style="font-size:12px;color:#555;margin-top:6px;min-height:16px"></div>
+      </div>
     </div>
 
     <!-- Summary -->
@@ -602,8 +619,8 @@
 
     <!-- Info -->
     <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#2e7d32">
-      💡 計算式：<strong>日販 × (リードタイム + 安全在庫日数) = 推奨在庫数</strong>　／　推奨在庫数 − 現在庫 = 発注推奨数（マイナスの場合は発注不要）
-      <br>リードタイム・安全在庫日数・月間販売数はすべてブラウザに自動保存されます
+      💡 計算式：<strong>合計日販 × (リードタイム + 安全在庫日数) = 推奨在庫数</strong>　／　推奨在庫数 − 現在庫 = 発注推奨数
+      <br>各プラットフォームの月間販売数を合算して計算します。入力値はすべてブラウザに自動保存されます。
     </div>
 
     <!-- Empty state -->
@@ -617,8 +634,11 @@
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr>
-            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left;white-space:nowrap;position:sticky;left:0">商品名</th>
-            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">月間販売数</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:left;white-space:nowrap">商品名</th>
+            <th style="background:#e65100;color:white;padding:10px 12px;text-align:right;white-space:nowrap">Amazon月販</th>
+            <th style="background:#c62828;color:white;padding:10px 12px;text-align:right;white-space:nowrap">楽天月販</th>
+            <th style="background:#f57f17;color:white;padding:10px 12px;text-align:right;white-space:nowrap">Yahoo月販</th>
+            <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">合計月販</th>
             <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">日販</th>
             <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">リードタイム(日)</th>
             <th style="background:#1a1a2e;color:white;padding:10px 12px;text-align:right;white-space:nowrap">安全在庫日数</th>
@@ -633,22 +653,22 @@
     </div>
   </div>
 
-  <!-- Amazon Column Mapping Modal -->
-  <div id="amazonMappingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+  <!-- Platform Column Mapping Modal -->
+  <div id="platformMappingModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
     <div style="background:white;border-radius:12px;padding:24px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
-      <div style="font-size:15px;font-weight:700;margin-bottom:8px">📊 Amazonレポートの列を選択</div>
-      <div id="amazonMappingSubtitle" style="font-size:13px;color:#666;margin-bottom:16px"></div>
+      <div id="platformMappingTitle" style="font-size:15px;font-weight:700;margin-bottom:8px"></div>
+      <div id="platformMappingSubtitle" style="font-size:13px;color:#666;margin-bottom:16px"></div>
       <div class="field">
         <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">商品名の列</label>
-        <select id="amazonNameCol" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
+        <select id="platformNameCol" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
       </div>
       <div class="field" style="margin-top:12px">
         <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">月間販売数の列</label>
-        <select id="amazonQtyCol" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
+        <select id="platformQtyCol" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
       </div>
       <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
-        <button class="btn btn-outline" onclick="document.getElementById('amazonMappingModal').style.display='none'">キャンセル</button>
-        <button class="btn btn-primary" onclick="importAmazonData()">インポート</button>
+        <button class="btn btn-outline" onclick="document.getElementById('platformMappingModal').style.display='none'">キャンセル</button>
+        <button class="btn btn-primary" onclick="importPlatformData()">インポート</button>
       </div>
     </div>
   </div>
@@ -1550,107 +1570,132 @@ function renderOrders() {
 }
 
 // === 発注計算 ===
-let orderCalcSalesMap = JSON.parse(localStorage.getItem('orderCalcSalesMap') || '{}');
+// 旧キーから移行
+(function migrateSalesMap() {
+  const old = localStorage.getItem('orderCalcSalesMap');
+  if (old && !localStorage.getItem('orderCalcSalesMap_amazon')) {
+    localStorage.setItem('orderCalcSalesMap_amazon', old);
+  }
+})();
+
+const salesMaps = {
+  amazon:  JSON.parse(localStorage.getItem('orderCalcSalesMap_amazon')  || '{}'),
+  rakuten: JSON.parse(localStorage.getItem('orderCalcSalesMap_rakuten') || '{}'),
+  yahoo:   JSON.parse(localStorage.getItem('orderCalcSalesMap_yahoo')   || '{}'),
+};
 let orderCalcSettings = JSON.parse(localStorage.getItem('orderCalcSettings') || '{}');
-let amazonCsvHeaders = [];
-let amazonCsvRows = [];
 
-// Amazon CSV file input setup
-document.getElementById('amazonReportInput').addEventListener('change', e => {
-  if (e.target.files[0]) loadAmazonReport(e.target.files[0]);
-});
-const amazonUploadArea = document.getElementById('amazonReportUploadArea');
-amazonUploadArea.addEventListener('dragover', e => { e.preventDefault(); amazonUploadArea.style.borderColor = '#4f6ef7'; });
-amazonUploadArea.addEventListener('dragleave', () => { amazonUploadArea.style.borderColor = '#c0c4d6'; });
-amazonUploadArea.addEventListener('drop', e => {
-  e.preventDefault();
-  amazonUploadArea.style.borderColor = '#c0c4d6';
-  if (e.dataTransfer.files[0]) loadAmazonReport(e.dataTransfer.files[0]);
+let platformCsvHeaders = [];
+let platformCsvRows = [];
+let currentImportPlatform = '';
+
+const platformMeta = {
+  amazon:  { label: '🟠 Amazon',           borderColor: '#f5c99b' },
+  rakuten: { label: '🔴 楽天市場',          borderColor: '#f5a0a0' },
+  yahoo:   { label: '🟡 Yahoo!ショッピング', borderColor: '#ffe082' },
+};
+
+['amazon', 'rakuten', 'yahoo'].forEach(platform => {
+  const fileInput = document.getElementById(`fileInput_${platform}`);
+  const uploadArea = document.getElementById(`uploadArea_${platform}`);
+  const borderColor = platformMeta[platform].borderColor;
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) loadPlatformReport(e.target.files[0], platform);
+  });
+  uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = '#4f6ef7'; });
+  uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = borderColor; });
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.style.borderColor = borderColor;
+    if (e.dataTransfer.files[0]) loadPlatformReport(e.dataTransfer.files[0], platform);
+  });
 });
 
-function loadAmazonReport(file) {
+function loadPlatformReport(file, platform) {
+  currentImportPlatform = platform;
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      parseAmazonReportCsv(e.target.result);
+      parsePlatformCsv(e.target.result, platform);
     } catch(err) {
-      document.getElementById('amazonReportStatus').textContent = '❌ 読み込みに失敗: ' + err.message;
+      document.getElementById(`status_${platform}`).textContent = '❌ 読み込みに失敗: ' + err.message;
     }
   };
-  // Try UTF-8 first, fallback to Shift-JIS
   reader.readAsText(file, 'UTF-8');
 }
 
-function parseAmazonReportCsv(text) {
+function parsePlatformCsv(text, platform) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l);
   if (lines.length < 2) throw new Error('データが少なすぎます');
 
-  // Detect separator (tab or comma)
   const sep = lines[0].includes('\t') ? '\t' : ',';
 
-  // Find header row (first row with 3+ columns)
   let headerIdx = 0;
   for (let i = 0; i < Math.min(5, lines.length); i++) {
     if (lines[i].split(sep).length >= 3) { headerIdx = i; break; }
   }
 
-  amazonCsvHeaders = lines[headerIdx].split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
-  amazonCsvRows = [];
+  platformCsvHeaders = lines[headerIdx].split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
+  platformCsvRows = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const cols = lines[i].split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
     if (cols.every(c => !c)) continue;
     const row = {};
-    amazonCsvHeaders.forEach((h, idx) => { row[h] = cols[idx] || ''; });
-    amazonCsvRows.push(row);
+    platformCsvHeaders.forEach((h, idx) => { row[h] = cols[idx] || ''; });
+    platformCsvRows.push(row);
   }
 
-  // Auto-guess columns
-  const nameGuess = amazonCsvHeaders.findIndex(h =>
-    h.includes('商品名') || h.includes('タイトル') || h.toLowerCase().includes('title') || h.includes('製品') || h.includes('商品タイトル')
+  // 商品名列の推定
+  const nameGuess = platformCsvHeaders.findIndex(h =>
+    h.includes('商品名') || h.includes('タイトル') || h.toLowerCase().includes('title') ||
+    h.includes('製品') || h.includes('商品タイトル') || h.includes('商品管理番号')
   );
-  const qtyGuess = amazonCsvHeaders.findIndex(h =>
-    h.includes('30日') || h.includes('販売数') || h.toLowerCase().includes('units ordered') ||
-    h.toLowerCase().includes('units_ordered') || h.includes('注文数') || h.includes('売上数量') || h.includes('注文商品点数')
+  // 販売数列の推定（プラットフォームごとのキーワード含む）
+  const qtyGuess = platformCsvHeaders.findIndex(h =>
+    h.includes('30日') || h.includes('販売数') || h.includes('受注数') || h.includes('注文数') ||
+    h.includes('売上数量') || h.includes('注文商品点数') || h.includes('注文個数') ||
+    h.toLowerCase().includes('units ordered') || h.toLowerCase().includes('units_ordered')
   );
 
-  const modal = document.getElementById('amazonMappingModal');
-  document.getElementById('amazonMappingSubtitle').textContent = `${amazonCsvRows.length}行のデータを検出しました。商品名と販売数量の列を指定してください。`;
+  const meta = platformMeta[platform];
+  document.getElementById('platformMappingTitle').textContent = `${meta.label} レポートの列を選択`;
+  document.getElementById('platformMappingSubtitle').textContent = `${platformCsvRows.length}行のデータを検出しました。商品名と販売数量の列を指定してください。`;
 
-  const buildOptions = (guessIdx) => amazonCsvHeaders.map((h, i) =>
+  const buildOptions = (guessIdx) => platformCsvHeaders.map((h, i) =>
     `<option value="${i}"${i === guessIdx ? ' selected' : ''}>${h}</option>`
   ).join('');
 
-  document.getElementById('amazonNameCol').innerHTML = buildOptions(nameGuess >= 0 ? nameGuess : 0);
-  document.getElementById('amazonQtyCol').innerHTML = buildOptions(qtyGuess >= 0 ? qtyGuess : 0);
-  modal.style.display = 'flex';
+  document.getElementById('platformNameCol').innerHTML = buildOptions(nameGuess >= 0 ? nameGuess : 0);
+  document.getElementById('platformQtyCol').innerHTML = buildOptions(qtyGuess >= 0 ? qtyGuess : 0);
+  document.getElementById('platformMappingModal').style.display = 'flex';
 }
 
-function importAmazonData() {
-  const nameKey = amazonCsvHeaders[parseInt(document.getElementById('amazonNameCol').value)];
-  const qtyKey = amazonCsvHeaders[parseInt(document.getElementById('amazonQtyCol').value)];
+function importPlatformData() {
+  const platform = currentImportPlatform;
+  const nameKey = platformCsvHeaders[parseInt(document.getElementById('platformNameCol').value)];
+  const qtyKey  = platformCsvHeaders[parseInt(document.getElementById('platformQtyCol').value)];
 
   let matched = 0, total = 0;
-  amazonCsvRows.forEach(row => {
+  platformCsvRows.forEach(row => {
     const csvName = (row[nameKey] || '').trim();
     const qty = parseInt(String(row[qtyKey] || '').replace(/[^0-9]/g, '')) || 0;
     if (!csvName) return;
     total++;
     const invItem = inventoryData.find(r =>
-      r.商品名 === csvName ||
-      r.商品名.includes(csvName) ||
-      csvName.includes(r.商品名)
+      r.商品名 === csvName || r.商品名.includes(csvName) || csvName.includes(r.商品名)
     );
     if (invItem) {
-      orderCalcSalesMap[invItem.商品名] = qty;
+      salesMaps[platform][invItem.商品名] = qty;
       matched++;
     }
   });
 
-  localStorage.setItem('orderCalcSalesMap', JSON.stringify(orderCalcSalesMap));
-  document.getElementById('amazonMappingModal').style.display = 'none';
-  document.getElementById('amazonReportStatus').textContent =
-    `✅ ${total}件中 ${matched}件の商品をマッチしました。` +
-    (matched < total ? ' マッチしなかった商品は手動で販売数を入力してください。' : '');
+  localStorage.setItem(`orderCalcSalesMap_${platform}`, JSON.stringify(salesMaps[platform]));
+  document.getElementById('platformMappingModal').style.display = 'none';
+  const meta = platformMeta[platform];
+  document.getElementById(`status_${platform}`).textContent =
+    `✅ ${total}件中 ${matched}件マッチ` + (matched < total ? '（残りは手動入力）' : '');
   renderOrderCalc();
 }
 
@@ -1665,17 +1710,19 @@ function renderOrderCalc() {
 
   const tbody = document.getElementById('orderCalcBody');
   tbody.innerHTML = '';
-
   let needCount = 0, okCount = 0;
 
   inventoryData.forEach(row => {
-    const productName = row.商品名;
-    const monthlyQty = orderCalcSalesMap[productName] || 0;
-    const dailySales = monthlyQty / 30;
-    const cfg = orderCalcSettings[productName] || {};
+    const pn = row.商品名;
+    const amzQty     = salesMaps.amazon[pn]  || 0;
+    const rakutenQty = salesMaps.rakuten[pn] || 0;
+    const yahooQty   = salesMaps.yahoo[pn]   || 0;
+    const totalMonthly = amzQty + rakutenQty + yahooQty;
+    const dailySales = totalMonthly / 30;
+    const cfg = orderCalcSettings[pn] || {};
     const leadTime = cfg.leadTime || 0;
     const safetyDays = cfg.safetyDays || 0;
-    const hasCalcData = monthlyQty > 0 && (leadTime + safetyDays) > 0;
+    const hasCalcData = totalMonthly > 0 && (leadTime + safetyDays) > 0;
     const targetStock = hasCalcData ? Math.ceil(dailySales * (leadTime + safetyDays)) : 0;
     const orderQty = hasCalcData ? Math.max(0, targetStock - row.在庫合計) : null;
     const needOrder = orderQty !== null && orderQty > 0;
@@ -1688,7 +1735,7 @@ function renderOrderCalc() {
 
     function makeTd(styles) {
       const td = document.createElement('td');
-      td.style.cssText = 'padding:9px 12px;' + (styles || '');
+      td.style.cssText = 'padding:8px 10px;' + (styles || '');
       return td;
     }
     function makeNumInput(value, width, onChange) {
@@ -1696,36 +1743,56 @@ function renderOrderCalc() {
       inp.type = 'number'; inp.min = '0';
       inp.value = value || '';
       inp.placeholder = '0';
-      inp.style.cssText = `width:${width}px;border:1px solid #ddd;border-radius:4px;padding:3px 6px;text-align:right;font-size:13px`;
+      inp.style.cssText = `width:${width}px;border:1px solid #ddd;border-radius:4px;padding:3px 5px;text-align:right;font-size:12px`;
       inp.addEventListener('change', onChange);
       return inp;
     }
 
-    const tdName = makeTd('font-weight:600;min-width:160px;white-space:normal');
-    tdName.textContent = productName;
+    const tdName = makeTd('font-weight:600;min-width:150px;white-space:normal');
+    tdName.textContent = pn;
 
-    const tdSales = makeTd('text-align:right');
-    tdSales.appendChild(makeNumInput(monthlyQty || '', 80, () => {
-      orderCalcSalesMap[productName] = parseInt(tdSales.querySelector('input').value) || 0;
-      localStorage.setItem('orderCalcSalesMap', JSON.stringify(orderCalcSalesMap));
+    // Amazon月販
+    const tdAmz = makeTd('text-align:right;background:#fff8f0');
+    tdAmz.appendChild(makeNumInput(amzQty || '', 65, () => {
+      salesMaps.amazon[pn] = parseInt(tdAmz.querySelector('input').value) || 0;
+      localStorage.setItem('orderCalcSalesMap_amazon', JSON.stringify(salesMaps.amazon));
       renderOrderCalc();
     }));
 
+    // 楽天月販
+    const tdRak = makeTd('text-align:right;background:#fff0f0');
+    tdRak.appendChild(makeNumInput(rakutenQty || '', 65, () => {
+      salesMaps.rakuten[pn] = parseInt(tdRak.querySelector('input').value) || 0;
+      localStorage.setItem('orderCalcSalesMap_rakuten', JSON.stringify(salesMaps.rakuten));
+      renderOrderCalc();
+    }));
+
+    // Yahoo月販
+    const tdYah = makeTd('text-align:right;background:#fffde7');
+    tdYah.appendChild(makeNumInput(yahooQty || '', 65, () => {
+      salesMaps.yahoo[pn] = parseInt(tdYah.querySelector('input').value) || 0;
+      localStorage.setItem('orderCalcSalesMap_yahoo', JSON.stringify(salesMaps.yahoo));
+      renderOrderCalc();
+    }));
+
+    const tdTotal = makeTd('text-align:right;font-weight:600');
+    tdTotal.textContent = totalMonthly || '-';
+
     const tdDaily = makeTd('text-align:right;color:#666');
-    tdDaily.textContent = monthlyQty ? dailySales.toFixed(1) : '-';
+    tdDaily.textContent = totalMonthly ? dailySales.toFixed(1) : '-';
 
     const tdLead = makeTd('text-align:right');
-    tdLead.appendChild(makeNumInput(leadTime || '', 70, () => {
-      if (!orderCalcSettings[productName]) orderCalcSettings[productName] = {};
-      orderCalcSettings[productName].leadTime = parseInt(tdLead.querySelector('input').value) || 0;
+    tdLead.appendChild(makeNumInput(leadTime || '', 60, () => {
+      if (!orderCalcSettings[pn]) orderCalcSettings[pn] = {};
+      orderCalcSettings[pn].leadTime = parseInt(tdLead.querySelector('input').value) || 0;
       localStorage.setItem('orderCalcSettings', JSON.stringify(orderCalcSettings));
       renderOrderCalc();
     }));
 
     const tdSafety = makeTd('text-align:right');
-    tdSafety.appendChild(makeNumInput(safetyDays || '', 70, () => {
-      if (!orderCalcSettings[productName]) orderCalcSettings[productName] = {};
-      orderCalcSettings[productName].safetyDays = parseInt(tdSafety.querySelector('input').value) || 0;
+    tdSafety.appendChild(makeNumInput(safetyDays || '', 60, () => {
+      if (!orderCalcSettings[pn]) orderCalcSettings[pn] = {};
+      orderCalcSettings[pn].safetyDays = parseInt(tdSafety.querySelector('input').value) || 0;
       localStorage.setItem('orderCalcSettings', JSON.stringify(orderCalcSettings));
       renderOrderCalc();
     }));
@@ -1741,14 +1808,14 @@ function renderOrderCalc() {
 
     const tdJudge = makeTd('text-align:center');
     if (orderQty === null) {
-      tdJudge.innerHTML = '<span style="color:#bbb;font-size:12px">データ未入力</span>';
+      tdJudge.innerHTML = '<span style="color:#bbb;font-size:11px">未入力</span>';
     } else if (needOrder) {
-      tdJudge.innerHTML = `<span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700">発注要</span>`;
+      tdJudge.innerHTML = '<span style="background:#e74c3c;color:white;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700">発注要</span>';
     } else {
       tdJudge.innerHTML = '<span style="background:#e8f5e9;color:#27ae60;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">在庫十分</span>';
     }
 
-    tr.append(tdName, tdSales, tdDaily, tdLead, tdSafety, tdStock, tdTarget, tdOrder, tdJudge);
+    tr.append(tdName, tdAmz, tdRak, tdYah, tdTotal, tdDaily, tdLead, tdSafety, tdStock, tdTarget, tdOrder, tdJudge);
     tbody.appendChild(tr);
   });
 
